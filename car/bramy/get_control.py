@@ -5,12 +5,13 @@ import time
 from pathlib import Path
 
 import can
+import cv2
 import pygame
+import rclpy
+from cv_bridge import CvBridge
+from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32MultiArray
-
-import rclpy
-from rclpy.node import Node
 
 # Initialize pygame and joystick
 pygame.init()
@@ -46,8 +47,15 @@ class get_control(Node):
         super().__init__('get_control')
         self.bus = can.Bus(interface='socketcan', channel='can0')
         self.speed = 0
+        self.bridge = CvBridge()
         self.angle = 90
         self.set_value()
+        self.create_subscription(
+            Image,
+            'depth_image',
+            self._depth_callback,
+            1  # QoS: queue size
+        )
         self.create_subscription(
             Image,
             'color_image',
@@ -55,6 +63,7 @@ class get_control(Node):
             1  # QoS: queue size
         )
         self.targeFolder = Path.home() / "Downloads" / "Target"
+        self.targeFolderDepth = Path.home() / "Downloads" / "TargetDepth"
         threading.Thread(target=self.detect, daemon=True).start()
         self.CamState = False
 
@@ -92,6 +101,24 @@ class get_control(Node):
         finally:
             pygame.quit()
 
+    def _depth_callback(self, msg):
+        """
+        Callback for the depth image topic.
+        Converts the ROS Image message to OpenCV format (passthrough).
+        """
+        try:
+            # Use "passthrough" to retain the original format of the depth image (e.g., 16UC1, 32FC1)
+            if self.CamState:
+                cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="mono16")
+                self._depth_image = cv2.flip(cv_image, 1)
+                filename = f"depth_{int(time.time()*1000)}_{self.angle}.jpg"
+                save_path = self.targeFolderDepth / filename
+                cv2.imwrite(str(save_path), self._depth_image)
+                self.get_logger().info(f"Saved depth image to {save_path}")
+        except Exception as e:
+            self.get_logger().error(f'Error converting Depth image: {e}')
+            self._depth_image = None
+
     def _rgb_callback(self, msg):
         """
         Callback for the color image topic.
@@ -104,7 +131,7 @@ class get_control(Node):
 
                 filename = f"rgb_{int(time.time()*1000)}_{self.angle}.jpg"
                 save_path = self.targeFolder / filename
-                cv_image.imwrite(str(save_path), cv_image)
+                cv2.imwrite(str(save_path), cv_image)
                 self.get_logger().info(f"Saved RGB image to {save_path}")
 
         except Exception as e:

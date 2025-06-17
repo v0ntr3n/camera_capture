@@ -1,10 +1,10 @@
 import cv2
+import rclpy
 from cv_bridge import CvBridge
+from rclpy.node import Node
 from sensor_msgs.msg import Image
 
-import rclpy
 from bramy.camera.astra_camera import Camera
-from rclpy.node import Node
 
 
 class CameraPublisher(Node):
@@ -14,13 +14,20 @@ class CameraPublisher(Node):
         self.camera = Camera()
         self.timer = self.create_timer(1.0 / 30.0, self.timer_callback)
 
+        self.color_pub = self.create_publisher(Image, 'color_image', 1)
+        self.depth_pub = self.create_publisher(Image, 'depth_image', 1)
+        self.timer = self.create_timer(1.0 / 30.0, self.timer_callback)
+
     def timer_callback(self):
         try:
             color = self.camera.get_color()
+            depth = self.camera.get_depth()
 
             color_msg = self.bridge.cv2_to_imgmsg(color, encoding='rgb8')
+            depth_msg = self.bridge.cv2_to_imgmsg(depth, encoding='mono16')
 
             self.color_pub.publish(color_msg)
+            self.depth_pub.publish(depth_msg)
         except Exception as e:
             self.get_logger().error(f'Error publishing frames: {e}')
 
