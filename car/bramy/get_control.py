@@ -6,6 +6,7 @@ from pathlib import Path
 
 import can
 import cv2
+import numpy as np
 import pygame
 import rclpy
 from cv_bridge import CvBridge
@@ -113,7 +114,7 @@ class get_control(Node):
                 self._depth_image = cv2.flip(cv_image, 1)
                 filename = f"depth_{int(time.time()*1000)}_{self.angle}.jpg"
                 save_path = self.targeFolderDepth / filename
-                cv2.imwrite(str(save_path), self._depth_image)
+                np.save(str(save_path), self._depth_image)
                 self.get_logger().info(f"Saved depth image to {save_path}")
         except Exception as e:
             self.get_logger().error(f'Error converting Depth image: {e}')
